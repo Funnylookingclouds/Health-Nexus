@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Nexus DApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a1a;
+        }
+        .glow-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.2;
+            z-index: 0;
+        }
+        .card-glow {
+            position: relative;
+            background-color: rgba(20, 20, 40, 0.6);
+            border: 1px solid rgba(115, 103, 240, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        .card-glow:before {
+            content: "";
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: radial-gradient(circle, rgba(115, 103, 240, 0.5), transparent 70%);
+            border-radius: 1.2rem;
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card-glow:hover:before {
+            opacity: 1;
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link.active {
+            color: #a5b4fc;
+            border-bottom-color: #a5b4fc;
+        }
+        .depth-bar {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            z-index: 0;
+            opacity: 0.2;
+        }
+        /* Leaflet Map Styles */
+        #populationMap {
+            height: 400px;
+            border-radius: 1rem;
+            border: 1px solid rgba(115, 103, 240, 0.3);
+        }
+        .leaflet-container {
+            background: #1e293b;
+        }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #0a0a1a;
+            color: #e5e7eb;
+            border: 1px solid rgba(115, 103, 240, 0.5);
+        }
+    </style>
+</head>
+<body class="text-gray-200 overflow-x-hidden">
+
+    <div class="glow-blob top-[-10%] left-[-10%] w-96 h-96 bg-purple-600"></div>
+    <div class="glow-blob top-[20%] right-[-15%] w-[500px] h-[500px] bg-cyan-500"></div>
+    <div class="glow-blob bottom-[-20%] left-[20%] w-[400px] h-[400px] bg-indigo-700"></div>
+
+    <div class="relative min-h-screen w-full p-4 sm:p-6 lg:p-8 z-10">
+        <div class="max-w-7xl mx-auto">
+
+            <header class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-3">
+                    <svg width="32" height="32" viewBox="0 0 24 24" class="text-indigo-400"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8s8 3.59 8 8s-3.59 8-8 8zm-1.45-5.32L12 13.24l1.45 1.44c.32.31.85.09.85-.35V9.5c0-.28-.22-.5-.5-.5h-3c-.28 0-.5.22-.5.5s.22.5.5.5h1.79l-1.97 1.97c-.32.31-.1.84.35.85z"/></svg>
+                    <h1 class="text-2xl font-bold text-white">Health Nexus</h1>
+                </div>
+                <button id="connectWalletBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 shadow-lg shadow-indigo-600/30 flex items-center space-x-2">
+                    <i data-lucide="wallet"></i>
+                    <span>Connect Wallet</span>
+                </button>
+            </header>
+
+            <nav class="mt-8">
+                <div class="flex space-x-4 sm:space-x-8 border-b border-gray-700 overflow-x-auto">
+                    <button id="healthchainLink" class="nav-link active font-semibold pb-2 flex-shrink-0">Personal Economy</button>
+                    <button id="healthpopLink" class="nav-link font-semibold pb-2 flex-shrink-0">Population Insights</button>
+                    <button id="whyLink" class="nav-link font-semibold pb-2 flex-shrink-0">About</button>
+                </div>
+            </nav>
+
+            <main class="mt-12">
+                <!-- VIEW 1: HealthChain Economy -->
+                <div id="healthchainView">
+                    <div class="text-center"><h2 class="text-4xl lg:text-5xl font-extrabold text-white">Your Personal Data Economy</h2><p class="mt-4 max-w-2xl mx-auto text-lg text-gray-400">Control, manage, and monetize your health data in a decentralized ecosystem.</p></div>
+                    
+                    <!-- Sub-navigation for HealthChain -->
+                    <div class="my-8 flex justify-center gap-4">
+                        <button class="sub-nav-link text-indigo-300 border-b-2 border-indigo-300 py-1 px-2" data-target="dashboardView">Dashboard</button>
+                        <button class="sub-nav-link text-gray-400" data-target="marketplaceView">Marketplace</button>
+                        <button class="sub-nav-link text-gray-400" data-target="aiView">AI Sandbox</button>
+                        <button class="sub-nav-link text-gray-400" data-target="connectView">Healthcare</button>
+                    </div>
+
+                    <!-- HealthChain Sub-Views -->
+                    <div id="dashboardView">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-purple-500/20 p-3 rounded-lg"><i data-lucide="database" class="text-purple-400"></i></div><div><p class="text-gray-400 text-sm">Total Data Points</p><p class="text-2xl font-bold text-white">1,245,890</p></div></div></div>
+                            <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-green-500/20 p-3 rounded-lg"><i data-lucide="dollar-sign" class="text-green-400"></i></div><div><p class="text-gray-400 text-sm">Total Earnings (USD)</p><p class="text-2xl font-bold text-white">$42.68</p></div></div></div>
+                            <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-cyan-500/20 p-3 rounded-lg"><i data-lucide="list-checks" class="text-cyan-400"></i></div><div><p class="text-gray-400 text-sm">Active Streams</p><p class="text-2xl font-bold text-white"><span id="activeStreams">2</span> / 4</p></div></div></div>
+                            <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-orange-500/20 p-3 rounded-lg"><i data-lucide="watch" class="text-orange-400"></i></div><div><p class="text-gray-400 text-sm">Last Sync (Garmin)</p><p class="text-2xl font-bold text-white">5 mins ago</p></div></div></div>
+                        </div>
+                        <div class="mt-16"><h3 class="text-2xl font-bold text-white mb-6">Your Data Streams</h3><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-6"><div class="card-glow rounded-2xl p-6 flex flex-col justify-between"><div><div class="flex justify-between items-start"><div class="flex items-center space-x-3"><i data-lucide="heart-pulse" class="text-red-400"></i><h4 class="font-bold text-lg text-white">Heart Rate</h4></div><div class="flex items-center space-x-2"><div class="data-status-dot w-2 h-2 rounded-full bg-green-400"></div><span class="data-status-text text-xs text-gray-400">Streaming</span></div></div><p class="text-4xl font-bold text-white mt-4"><span id="heartRateValue">72</span> <span class="text-lg font-medium text-gray-400">BPM</span></p></div><div class="mt-6 flex justify-between items-center"><span class="text-sm text-gray-400">Sell Data</span><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" checked/><label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label></div></div></div><div class="card-glow rounded-2xl p-6 flex flex-col justify-between"><div><div class="flex justify-between items-start"><div class="flex items-center space-x-3"><i data-lucide="footprints" class="text-sky-400"></i><h4 class="font-bold text-lg text-white">Activity</h4></div><div class="flex items-center space-x-2"><div class="data-status-dot w-2 h-2 rounded-full bg-green-400"></div><span class="data-status-text text-xs text-gray-400">Streaming</span></div></div><p class="text-4xl font-bold text-white mt-4"><span id="stepsValue">8,451</span> <span class="text-lg font-medium text-gray-400">steps</span></p></div><div class="mt-6 flex justify-between items-center"><span class="text-sm text-gray-400">Sell Data</span><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" checked/><label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label></div></div></div><div class="card-glow rounded-2xl p-6 flex flex-col justify-between"><div><div class="flex justify-between items-start"><div class="flex items-center space-x-3"><i data-lucide="bed-double" class="text-purple-400"></i><h4 class="font-bold text-lg text-white">Sleep Data</h4></div><div class="flex items-center space-x-2"><div class="data-status-dot w-2 h-2 rounded-full bg-gray-500"></div><span class="data-status-text text-xs text-gray-400">Paused</span></div></div><p class="text-4xl font-bold text-white mt-4">7<span class="text-lg font-medium text-gray-400">h</span> 32<span class="text-lg font-medium text-gray-400">m</span></p></div><div class="mt-6 flex justify-between items-center"><span class="text-sm text-gray-400">Sell Data</span><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/><label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label></div></div></div><div class="card-glow rounded-2xl p-6 flex flex-col justify-between"><div><div class="flex justify-between items-start"><div class="flex items-center space-x-3"><i data-lucide="activity" class="text-teal-400"></i><h4 class="font-bold text-lg text-white">ECG</h4></div><div class="flex items-center space-x-2"><div class="data-status-dot w-2 h-2 rounded-full bg-gray-500"></div><span class="data-status-text text-xs text-gray-400">Paused</span></div></div><p class="text-2xl font-semibold text-gray-300 mt-4">On-demand only</p><p class="text-xs text-gray-500">Requires user approval for each sale.</p></div><div class="mt-6 flex justify-between items-center"><span class="text-sm text-gray-400">Enable Sales</span><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/><label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label></div></div></div></div></div>
+                        <div class="mt-16 grid grid-cols-1 lg:grid-cols-5 gap-6"><div class="lg:col-span-3 card-glow rounded-2xl p-6"><h3 class="text-xl font-bold text-white mb-4">Heart Rate (Last 24 Hours)</h3><div class="h-64"><canvas id="heartRateChart"></canvas></div></div><div class="lg:col-span-2 card-glow rounded-2xl p-6"><h3 class="text-xl font-bold text-white mb-4">Recent Transactions</h3><div id="transactionList" class="space-y-4 max-h-64 overflow-y-auto"></div></div></div>
+                    </div>
+                    <div id="marketplaceView" class="hidden">
+                        <div class="card-glow rounded-2xl p-6 mb-12"><h3 class="text-xl font-bold text-white mb-4">Live ECG Data Order Book</h3><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div><table class="w-full text-xs text-left"><thead><tr class="text-gray-400"><th class="p-2">Price (USD)</th><th class="p-2 text-right">Amount (Records)</th><th class="p-2 text-right">Total (USD)</th></tr></thead><tbody id="bids-table"></tbody></table></div><div><table class="w-full text-xs text-left"><thead><tr class="text-gray-400"><th class="p-2">Price (USD)</th><th class="p-2 text-right">Amount (Records)</th><th class="p-2 text-right">Total (USD)</th></tr></thead><tbody id="asks-table"></tbody></table></div></div></div>
+                        <div class="text-center"><h2 class="text-2xl lg:text-3xl font-extrabold text-white">Data Bounties</h2><p class="mt-4 max-w-2xl mx-auto text-lg text-gray-400">Contribute your anonymized data to research and earn rewards.</p></div>
+                        <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">Karolinska Institute</h4><span class="bg-purple-500/20 text-purple-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Sleep Study</span></div><p class="mt-2 text-sm text-gray-400">Seeking sleep pattern data for a study on circadian rhythms.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Population: Male, 30-40 Yrs</span></div><div class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Duration: 30 Days</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Reward</p><p class="font-bold text-white">0.08 ETH</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Contribute</button></div></div><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">PharmaCorp R&D</h4><span class="bg-teal-500/20 text-teal-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Clinical Trial</span></div><p class="mt-2 text-sm text-gray-400">Requesting continuous ECG data to monitor cardiac safety.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Population: All, 50+ Yrs</span></div><div class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Duration: 90 Days</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Reward</p><p class="font-bold text-white">0.05 ETH / day</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Learn More</button></div></div><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">FitLife Analytics</h4><span class="bg-sky-500/20 text-sky-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Fitness Research</span></div><p class="mt-2 text-sm text-gray-400">Aggregating daily activity and heart rate data for predictive models.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Population: Active Adults</span></div><div class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Duration: Ongoing</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Reward</p><p class="font-bold text-white">Micro-payments</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Contribute</button></div></div></div>
+                    </div>
+                    <div id="aiView" class="hidden">
+                        <div class="text-center"><h2 class="text-2xl lg:text-3xl font-extrabold text-white">AI Sandbox for Health</h2><p class="mt-4 max-w-2xl mx-auto text-lg text-gray-400">Access privacy-preserving datasets to build the future of predictive health.</p></div>
+                        <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">Synthetic ECG Waveforms</h4><span class="bg-green-500/20 text-green-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Synthetic Data</span></div><p class="mt-2 text-sm text-gray-400">Large-scale dataset of realistic, 12-lead ECG signals generated by a GAN.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="database" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Records: 5,000,000+</span></div><div class="flex items-center"><i data-lucide-code" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Use Case: Arrhythmia Classification</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Access Cost</p><p class="font-bold text-white">0.1 ETH</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Request Access</button></div></div><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">Longitudinal Activity Data</h4><span class="bg-orange-500/20 text-orange-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Anonymized</span></div><p class="mt-2 text-sm text-gray-400">A 5-year longitudinal dataset of daily steps, active minutes, and resting heart rate.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="database" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Subjects: 10,000</span></div><div class="flex items-center"><i data-lucide="code" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Use Case: Mobility Decline Prediction</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Access Cost</p><p class="font-bold text-white">1.2 ETH</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Request Access</button></div></div><div class="card-glow rounded-2xl p-6 flex flex-col"><div class="flex-grow"><div class="flex justify-between items-start"><h4 class="text-lg font-bold text-white">Polysomnography (PSG) Dataset</h4><span class="bg-orange-500/20 text-orange-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Anonymized</span></div><p class="mt-2 text-sm text-gray-400">Rich, multi-channel sleep data including EEG, EOG, EMG, and SpO2.</p><div class="mt-4 space-y-2 text-sm"><div class="flex items-center"><i data-lucide="database" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Studies: 5,000</span></div><div class="flex items-center"><i data-lucide="code" class="w-4 h-4 mr-2 text-indigo-400"></i><span>Use Case: Sleep Apnea Detection</span></div></div></div><div class="mt-6 pt-4 border-t border-gray-700 flex justify-between items-center"><div><p class="text-xs text-gray-400">Access Cost</p><p class="font-bold text-white">2.5 ETH</p></div><button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg text-sm">Request Access</button></div></div></div>
+                    </div>
+                    <div id="connectView" class="hidden">
+                        <div class="text-center"><h2 class="text-2xl lg:text-3xl font-extrabold text-white">Integrate With Your Healthcare</h2><p class="mt-4 max-w-3xl mx-auto text-lg text-gray-400">Securely share data with providers or run your vitals through certified AI algorithms.</p></div>
+                        <div class="mt-12 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div class="card-glow rounded-2xl p-8"><h3 class="text-xl font-bold text-white flex items-center"><i data-lucide="link" class="mr-3 text-indigo-400"></i>EHR & Provider Connection</h3><p class="mt-4 text-gray-400">Grant your doctor permission to view your live wearable data through a secure API connector.</p><div class="mt-6 bg-black/20 rounded-lg p-4 border border-gray-700"><div class="flex items-center justify-between"><div class="flex items-center space-x-3"><div class="bg-green-500/20 p-2 rounded-md"><i data-lucide="shield-check" class="text-green-400"></i></div><div><p class="font-semibold text-white">Karolinska University Hospital</p><p class="text-sm text-green-400">Active Connection</p></div></div><button class="text-xs text-gray-400 hover:text-white">Manage</button></div><div class="mt-4 text-sm text-gray-400 space-y-1"><p class="font-semibold text-gray-300">Data Shared:</p><p class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-green-400"></i>Heart Rate</p><p class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-green-400"></i>Daily Activity</p></div></div></div>
+                            <div class="card-glow rounded-2xl p-8"><h3 class="text-xl font-bold text-white flex items-center"><i data-lucide="bot" class="mr-3 text-indigo-400"></i>AI Health Screening</h3><p class="mt-4 text-gray-400">Submit your data to certified AI algorithms to screen for potential health risks.</p><div class="mt-6 bg-black/20 rounded-lg p-4 border border-gray-700" data-screening-card><h4 class="font-semibold text-white">Atrial Fibrillation (AFib) Detector</h4><p class="text-xs text-gray-500 mb-3">Certified by HealthAI Consortium</p><p class="text-sm text-gray-400">Analyzes heart rate variability to detect patterns that may indicate AFib.</p><div class="screening-result mt-4 text-sm hidden"></div><div class="mt-4 flex justify-between items-center"><span class="text-xs text-gray-500">Requires: 24h Heart Rate Data</span><button class="run-screening-btn bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-3 rounded-lg text-sm">Run Screening</button></div></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: HealthPop Insights -->
+                <div id="healthpopView" class="hidden">
+                    <div class="text-center"><h2 class="text-4xl lg:text-5xl font-extrabold text-white">Population Health Insights</h2><p class="mt-4 max-w-3xl mx-auto text-lg text-gray-400">Explore aggregated, anonymized health trends from the HealthChain network. Your data contributes to a healthier world.</p></div>
+                    
+                    <div class="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-blue-500/20 p-3 rounded-lg"><i data-lucide="users" class="text-blue-400"></i></div><div><p class="text-gray-400 text-sm">Active Contributors</p><p class="text-2xl font-bold text-white">28,451</p></div></div></div>
+                        <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-yellow-500/20 p-3 rounded-lg"><i data-lucide="activity" class="text-yellow-400"></i></div><div><p class="text-gray-400 text-sm">Avg. Resting Heart Rate</p><p class="text-2xl font-bold text-white">62 BPM</p></div></div></div>
+                        <div class="card-glow rounded-2xl p-6"><div class="flex items-center space-x-4"><div class="bg-purple-500/20 p-3 rounded-lg"><i data-lucide="bed" class="text-purple-400"></i></div><div><p class="text-gray-400 text-sm">Avg. Sleep Duration</p><p class="text-2xl font-bold text-white">7h 18m</p></div></div></div>
+                    </div>
+
+                    <div class="mt-12 grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        <div class="lg:col-span-3 card-glow rounded-2xl p-6">
+                            <h3 class="text-xl font-bold text-white mb-4">Regional Activity Levels (Sweden)</h3>
+                            <div id="populationMap"></div>
+                        </div>
+                        <div class="lg:col-span-2 card-glow rounded-2xl p-6">
+                            <h3 class="text-xl font-bold text-white mb-4">Network Weekly Step Average</h3>
+                            <div class="h-64"><canvas id="populationStepsChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 3: About Page -->
+                <div id="whyView" class="hidden">
+                    <div class="text-center"><h2 class="text-4xl lg:text-5xl font-extrabold text-white">The Future of Health Data</h2><p class="mt-4 max-w-3xl mx-auto text-lg text-gray-400">A unified ecosystem for individual empowerment and collective well-being.</p></div>
+                    <div class="mt-16 max-w-4xl mx-auto space-y-12">
+                        <div class="card-glow rounded-2xl p-8"><h3 class="text-2xl font-bold text-white flex items-center"><i data-lucide="gem" class="mr-3 text-indigo-400"></i>Our Vision</h3><p class="mt-4 text-gray-300">We envision a world where your health data is no longer a liability locked in a silo, but an asset you control. Our platform is built on two core pillars: the **Personal Economy** for individual monetization, and **Population Insights** for collective research. Together, they create a virtuous cycle: individuals are empowered by their data, which in turn fuels a rich, privacy-preserving dataset that benefits all of society.</p></div>
+                        <div class="card-glow rounded-2xl p-8"><h3 class="text-2xl font-bold text-white flex items-center"><i data-lucide="sparkles" class="mr-3 text-indigo-400"></i>Why Build on Flare Network?</h3><p class="mt-4 text-gray-300">Flare's unique technology is the cornerstone of our platform. The **State Connector** allows us to verify real-world data from wearables on-chain, ensuring authenticity. The **Flare Time Series Oracle (FTSO)** provides reliable price feeds for a stable data economy. Finally, **low-cost transactions** make the entire ecosystem of data micropayments economically viable.</p></div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const connectWalletBtn = document.getElementById('connectWalletBtn');
+            const heartRateValueEl = document.getElementById('heartRateValue');
+            const stepsValueEl = document.getElementById('stepsValue');
+            const activeStreamsEl = document.getElementById('activeStreams');
+            const transactionListEl = document.getElementById('transactionList');
+            
+            const mainNavLinks = {
+                healthchainLink: document.getElementById('healthchainLink'),
+                healthpopLink: document.getElementById('healthpopLink'),
+                whyLink: document.getElementById('whyLink'),
+            };
+
+            const mainViews = {
+                healthchainView: document.getElementById('healthchainView'),
+                healthpopView: document.getElementById('healthpopView'),
+                whyView: document.getElementById('whyView'),
+            };
+
+            const subNavLinks = document.querySelectorAll('#healthchainView .sub-nav-link');
+            const subViews = {
+                dashboardView: document.getElementById('dashboardView'),
+                marketplaceView: document.getElementById('marketplaceView'),
+                aiView: document.getElementById('aiView'),
+                connectView: document.getElementById('connectView'),
+            };
+
+            let isWalletConnected = false;
+            let popMap;
+
+            // --- Main View Switching Logic ---
+            function showMainView(viewToShow) {
+                Object.values(mainViews).forEach(v => v.classList.add('hidden'));
+                viewToShow.classList.remove('hidden');
+
+                Object.values(mainNavLinks).forEach(l => l.classList.remove('active'));
+                
+                if (viewToShow.id === 'healthchainView') mainNavLinks.healthchainLink.classList.add('active');
+                else if (viewToShow.id === 'healthpopView') {
+                    mainNavLinks.healthpopLink.classList.add('active');
+                    initializeMap(); // Initialize map only when view is shown
+                }
+                else if (viewToShow.id === 'whyView') mainNavLinks.whyLink.classList.add('active');
+                
+                lucide.createIcons();
+            }
+
+            mainNavLinks.healthchainLink.addEventListener('click', () => showMainView(mainViews.healthchainView));
+            mainNavLinks.healthpopLink.addEventListener('click', () => showMainView(mainViews.healthpopView));
+            mainNavLinks.whyLink.addEventListener('click', () => showMainView(mainViews.whyView));
+
+            // --- Sub-View Switching Logic for HealthChain ---
+            function showSubView(viewToShow) {
+                Object.values(subViews).forEach(v => v.classList.add('hidden'));
+                viewToShow.classList.remove('hidden');
+
+                subNavLinks.forEach(l => {
+                    l.classList.remove('text-indigo-300', 'border-indigo-300');
+                    l.classList.add('text-gray-400');
+                });
+
+                const activeLink = document.querySelector(`.sub-nav-link[data-target="${viewToShow.id}"]`);
+                activeLink.classList.add('text-indigo-300', 'border-indigo-300');
+                activeLink.classList.remove('text-gray-400');
+            }
+
+            subNavLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    const targetView = subViews[e.target.dataset.target];
+                    if (targetView) showSubView(targetView);
+                });
+            });
+
+            connectWalletBtn.addEventListener('click', () => {
+                isWalletConnected = !isWalletConnected;
+                connectWalletBtn.innerHTML = isWalletConnected 
+                    ? `<i data-lucide="check-circle"></i><span>0x1a2b...c3d4</span>`
+                    : `<i data-lucide="wallet"></i><span>Connect Wallet</span>`;
+                lucide.createIcons();
+            });
+
+            function updateData() {
+                let currentHeartRate = parseInt(heartRateValueEl.textContent);
+                heartRateValueEl.textContent = Math.min(Math.max(currentHeartRate + (Math.floor(Math.random() * 5) - 2), 60), 90);
+                let currentSteps = parseInt(stepsValueEl.textContent.replace(',', ''));
+                stepsValueEl.textContent = (currentSteps + Math.floor(Math.random() * 10)).toLocaleString();
+            }
+            setInterval(updateData, 3000);
+
+            // --- Chart.js Visualization ---
+            const ctx = document.getElementById('heartRateChart').getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(115, 103, 240, 0.5)');
+            gradient.addColorStop(1, 'rgba(115, 103, 240, 0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['-12h', '-10h', '-8h', '-6h', '-4h', '-2h', 'Now'],
+                    datasets: [{
+                        label: 'Heart Rate',
+                        data: [65, 68, 72, 65, 80, 75, 72],
+                        backgroundColor: gradient,
+                        borderColor: 'rgba(115, 103, 240, 1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: 'rgba(115, 103, 240, 1)',
+                        tension: 0.4,
+                        fill: true,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { enabled: true, backgroundColor: 'rgba(10, 10, 26, 0.8)', titleColor: '#a5b4fc', bodyColor: '#e5e7eb', callbacks: { label: (c) => `BPM: ${c.parsed.y}`, title: (c) => `Time: ${c[0].label}` } } },
+                    scales: { y: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }
+                }
+            });
+
+            // --- HealthPop: Map Initialization ---
+            function initializeMap() {
+                if (popMap) return; // Don't re-initialize
+                popMap = L.map('populationMap').setView([62.0, 15.0], 5); // Centered on Sweden
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                    subdomains: 'abcd',
+                    maxZoom: 20
+                }).addTo(popMap);
+
+                const cities = [
+                    { name: 'Stockholm', coords: [59.3293, 18.0686], steps: 9250, color: '#34d399' },
+                    { name: 'Gothenburg', coords: [57.7089, 11.9746], steps: 8800, color: '#60a5fa' },
+                    { name: 'Malmö', coords: [55.6050, 13.0038], steps: 8500, color: '#fbbf24' },
+                    { name: 'Umeå', coords: [63.8258, 20.2630], steps: 9800, color: '#a78bfa' }
+                ];
+
+                cities.forEach(city => {
+                    L.circle(city.coords, {
+                        color: city.color,
+                        fillColor: city.color,
+                        fillOpacity: 0.5,
+                        radius: city.steps * 5 // Radius based on steps
+                    }).addTo(popMap).bindPopup(`<b>${city.name}</b><br>Avg. Daily Steps: ${city.steps.toLocaleString()}`);
+                });
+            }
+
+            // --- HealthPop: Steps Chart ---
+            const popCtx = document.getElementById('populationStepsChart').getContext('2d');
+            new Chart(popCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'This Week'],
+                    datasets: [{
+                        label: 'Avg. Daily Steps',
+                        data: [8100, 8350, 8200, 8550, 8450],
+                        backgroundColor: 'rgba(167, 139, 250, 0.5)',
+                        borderColor: 'rgba(167, 139, 250, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { grid: { display: false }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }
+                }
+            });
+
+            // --- Order Book Logic ---
+            let bids = [{ price: 0.049, amount: 5000 }, { price: 0.048, amount: 12000 }, { price: 0.047, amount: 8500 }];
+            let asks = [{ price: 0.051, amount: 7500 }, { price: 0.052, amount: 9000 }, { price: 0.053, amount: 18000 }];
+            const bidsTable = document.getElementById('bids-table');
+            const asksTable = document.getElementById('asks-table');
+
+            function renderOrderBook() {
+                bids.sort((a, b) => b.price - a.price);
+                asks.sort((a, b) => a.price - b.price);
+                let cumulativeBids = 0, totalBidVolume = bids.reduce((s, o) => s + (o.price * o.amount), 0);
+                bidsTable.innerHTML = bids.map(b => {
+                    cumulativeBids += b.price * b.amount;
+                    return `<tr class="relative"><td class="p-2 relative z-10 text-green-400">${b.price.toFixed(3)}</td><td class="p-2 relative z-10 text-right">${b.amount.toLocaleString()}</td><td class="p-2 relative z-10 text-right">${(b.price * b.amount).toFixed(2)}</td><div class="depth-bar right-0 bg-green-500" style="width: ${(cumulativeBids / totalBidVolume) * 100}%"></div></tr>`;
+                }).join('');
+                let cumulativeAsks = 0, totalAskVolume = asks.reduce((s, o) => s + (o.price * o.amount), 0);
+                asksTable.innerHTML = asks.map(a => {
+                    cumulativeAsks += a.price * a.amount;
+                    return `<tr class="relative"><td class="p-2 relative z-10 text-red-400">${a.price.toFixed(3)}</td><td class="p-2 relative z-10 text-right">${a.amount.toLocaleString()}</td><td class="p-2 relative z-10 text-right">${(a.price * a.amount).toFixed(2)}</td><div class="depth-bar left-0 bg-red-500" style="width: ${(cumulativeAsks / totalAskVolume) * 100}%"></div></tr>`;
+                }).join('');
+            }
+            renderOrderBook();
+            setInterval(() => {
+                bids[Math.floor(Math.random() * bids.length)].amount += Math.floor(Math.random() * 2000) - 1000;
+                asks[Math.floor(Math.random() * asks.length)].amount += Math.floor(Math.random() * 2000) - 1000;
+                renderOrderBook();
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
